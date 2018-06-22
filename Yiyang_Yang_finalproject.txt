@@ -1,0 +1,925 @@
+--Part 2.1--
+CREATE OR REPLACE PROCEDURE proc_customer_registration
+(	
+	in_customer_id		    VARCHAR2,
+	in_customer_name 		VARCHAR2,
+    in_customer_status	    CHAR,
+    in_email 			    VARCHAR2, 
+    in_phone_number 		VARCHAR2,
+ 	in_registration_date	DATE
+) 
+IS
+	v_count		NUMBER;
+BEGIN
+	IF LENGTH(TRIM(in_customer_id)) > 15 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+		RETURN;
+	END IF;
+
+	SELECT  COUNT(*)
+	INTO	v_count
+	FROM	tab_customer
+	WHERE	customer_id = in_customer_id;
+
+	IF v_count != 0 THEN
+		DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+		RETURN;
+	END IF;
+
+  	IF TRIM(in_customer_name) is NULL OR LENGTH(TRIM(in_customer_name)) > 30 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_name!');
+		RETURN;
+	END IF;
+ 
+    IF UPPER(TRIM(in_customer_status)) != 'AC' AND UPPER(TRIM(in_customer_status)) != 'IN' THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_status!');
+		RETURN;
+	END IF;
+
+    IF TRIM(in_email) is NULL OR LENGTH(TRIM(in_email)) > 50 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_email!');
+		RETURN;
+	END IF;
+
+	IF TRIM(in_phone_number) is NULL OR LENGTH(TRIM(in_phone_number)) > 50 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_phone_number!');
+		RETURN;
+	END IF;
+
+    IF in_registration_date IS NULL OR TO_CHAR(in_registration_date, 'yyyymmdd') < '20000101' 
+                                    OR TO_CHAR(in_registration_date, 'yyyymmdd') > TO_CHAR(sysdate, 'yyyymmdd') THEN
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_registration_date!');
+		RETURN;
+	END IF;
+
+	INSERT INTO tab_customer 
+       	VALUES(TRIM(in_customer_id), UPPER(TRIM(in_customer_name)), UPPER(TRIM(in_customer_status)), TRIM(in_email), TRIM(in_phone_number), in_registration_date, sysdate);
+	COMMIT;
+	
+    DBMS_OUTPUT.PUT_LINE(INITCAP(in_customer_name) || ' has been added into the tab_customer table.');
+		
+EXCEPTION
+	WHEN OTHERS THEN
+		DBMS_OUTPUT.PUT_LINE('My exception: ' || TO_CHAR(SQLCODE) || '   ' || SQLERRM);
+END;
+
+
+EXEC proc_customer_registration('C4000', 'Adams', 'AC', 'adams_1@yahoo.com', '3123621111', '02-FEB-2017')
+
+EXEC proc_customer_registration('C5010', '  ', 'AC', 'ford1@yahoo.com', '3123622222', '02-FEB-2017')    
+
+--Part 2.2--
+CREATE OR REPLACE PROCEDURE proc_change_customer_status 
+(
+    in_customer_id 		    VARCHAR2,
+    in_new_customer_status 	VARCHAR2
+)
+IS
+    v_n     NUMBER;
+BEGIN
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    tab_customer
+    WHERE   customer_id = in_customer_id;
+    
+    IF v_n = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+    ELSIF UPPER(in_new_customer_status) != 'AC' AND UPPER(in_new_customer_status) != 'IN' THEN
+        DBMS_OUTPUT.PUT_LINE('Invalid in_new_customer_status!');
+    ELSE
+        UPDATE  tab_customer
+        SET     customer_status = in_new_customer_status,
+                last_update_date = SYSDATE
+        WHERE   customer_id = in_customer_id;
+        DBMS_OUTPUT.PUT_LINE('The status of the customer has been updated.');
+    END IF;
+END;
+
+
+--Part 2.3--
+CREATE OR REPLACE PROCEDURE proc_video_search 
+(
+    in_video_name 	    VARCHAR2, 
+    in_video_format 	VARCHAR2 DEFAULT NULL
+)
+IS
+    v_name          tab_video.video_name%TYPE;
+    v_copy_id       tab_video_copy.copy_id%TYPE;
+    v_format        tab_video.video_format%TYPE;
+    v_status        tab_video_copy.copy_status%TYPE;
+    v_c_date        tab_video_rental.checkout_date%TYPE;
+    v_d_date        tab_video_rental.due_date%TYPE;
+    v_t             INTEGER;
+    v_a             INTEGER;
+    v_s             VARCHAR2(15);
+    
+    CURSOR c_1 IS
+        SELECT      v.video_name, c.copy_id,  v.video_format, c.copy_status, r.checkout_date, r.due_date 
+        FROM        tab_video v, tab_video_copy c, tab_video_rental r 
+        WHERE       v.video_id = c.video_id(+) 
+        AND         c.copy_id = r.copy_id(+) 
+        AND         UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND         (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL))
+        ORDER BY    v.video_name, c.copy_id;
+    
+    CURSOR c_2 IS
+        SELECT      v.video_name, c.copy_id, v.video_format, c.copy_status, r.checkout_date, r.due_date 
+        FROM        tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE       v.video_id = c.video_id(+) 
+        AND         c.copy_id = r.copy_id(+) 
+        AND         UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND         (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL)) 
+        AND         UPPER(v.video_format) LIKE UPPER(in_video_format)
+        ORDER BY    v.video_name, c.copy_id;
+BEGIN
+    IF in_video_format IS NULL THEN
+        SELECT  COUNT(c.copy_id) 
+        INTO    v_t 
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+) 
+        AND     c.copy_id = r.copy_id(+)  
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND     (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL));
+        
+        SELECT  COUNT(c.copy_id)
+        INTO    v_a
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+)
+        AND     c.copy_id = r.copy_id(+)
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%'
+        AND     c.copy_status = 'A';
+        
+        IF v_t = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '. *****');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '. (Available copies: ' || v_a || ') *****');
+        END IF;
+    ELSE
+        SELECT  COUNT(c.copy_id) 
+        INTO    v_t 
+        FROM    tab_video v , tab_video_copy c, tab_video_rental r 
+        WHERE   v.video_id = c.video_id(+) 
+        AND     c.copy_id = r.copy_id(+) 
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%' AND c.copy_status <> 'D' 
+        AND     (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL)) 
+        AND     UPPER(v.video_format) LIKE UPPER(in_video_format);	
+        
+        SELECT  COUNT(c.copy_id)
+        INTO    v_a
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+)
+        AND     c.copy_id = r.copy_id(+)
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%'
+        AND     c.copy_status = 'A'
+        AND     UPPER(in_video_format) LIKE UPPER(v.video_format);
+        
+        IF v_t = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '(' || in_video_format || '). *****');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '(' || in_video_format || '). (Available copies: ' || v_a || '). *****');
+        END IF;
+    END IF;
+    
+    IF v_t > 0 THEN
+        DBMS_OUTPUT.PUT_LINE(RPAD('VIDEO NAME', 17) || RPAD('COPE ID', 11) || RPAD('VIDEO FORMAT', 19) || RPAD('COPY STATUS', 15) || RPAD('CHECKOUT DATE', 20) || RPAD('DUE DATE', 18));
+        DBMS_OUTPUT.PUT_LINE(RPAD('-', 98, '-'));
+        
+        IF in_video_format IS NULL THEN
+            OPEN c_1;
+                LOOP
+                    FETCH c_1 INTO v_name, v_copy_id, v_format, v_status, v_c_date, v_d_date;
+                    EXIT WHEN c_1%NOTFOUND;
+                    
+                    IF v_status = 'A' THEN
+                        v_s := 'Available';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 11) || RPAD(v_format, 19) || RPAD(v_s, 15));
+                    ELSIF v_status = 'R' THEN
+                        v_s := 'Rented';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 11) || RPAD(v_format, 19) || RPAD(v_s, 15) || LPAD(TO_CHAR(v_c_date, 'DD-MON-YYYY'), 13) || LPAD(TO_CHAR(v_d_date, 'DD-MON-YYYY'), 15));
+                    END IF;
+                END LOOP;
+            CLOSE c_1;
+        ELSE
+            OPEN c_2;
+                LOOP
+                    FETCH c_2 INTO v_name, v_copy_id, v_format, v_status, v_c_date, v_d_date;
+                    EXIT WHEN c_2%NOTFOUND;
+                    
+                    IF v_status = 'A' THEN
+                        v_s := 'Available';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 15) || RPAD(v_format, 15) || RPAD(v_s, 15));
+                    ELSIF v_status = 'R' THEN
+                        v_s := 'Rented';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 15) || RPAD(v_format, 15) || RPAD(v_s, 15) || RPAD(TO_CHAR(v_c_date, 'DD-MON-YYYY'), 13) || LPAD(TO_CHAR(v_d_date, 'DD-MON-YYYY'), 15));
+                    END IF;
+                END LOOP;
+            CLOSE c_2;
+        END IF;
+    END IF;
+END;
+EXEC proc_video_search('ocean')
+EXEC proc_video_search('PRETTY WOMAN', 'Blu-Ray')
+EXEC proc_video_search('Pretty Woman')
+EXEC proc_video_search('Another')
+EXEC proc_video_search('ANOTHER', 'Dvd')
+EXEC proc_video_search('Story')
+
+--Part 2.4--
+CREATE OR REPLACE PROCEDURE proc_video_checkout
+(	
+    in_customer_id		    VARCHAR2, 
+	in_copy_id 			    VARCHAR2, 
+	in_video_checkout_date 	DATE 
+)
+IS
+    v_n             NUMBER;
+    v_c_status      VARCHAR2(2);
+    v_status        CHAR;
+    v_num_copy      NUMBER;
+    v_id            VARCHAR2(15);
+    v_max           NUMBER;
+    v_t             NUMBER;
+    v_date          DATE;
+BEGIN
+    SELECT  COUNT(customer_id)
+    INTO    v_n
+    FROM    tab_customer
+    WHERE   customer_id = in_customer_id;
+    IF v_n = 0 THEN 
+        DBMS_OUTPUT.PUT_LINE('There is no customer ID in the database');
+    ELSE
+        SELECT  customer_status 
+        INTO    v_c_status 
+        FROM    tab_customer 
+        WHERE   customer_id = in_customer_id;
+
+        SELECT  copy_status, video_id
+        INTO    v_status, v_id
+        FROM    tab_video_copy 
+        WHERE   copy_id = in_copy_id;
+
+        SELECT  COUNT(*) 
+        INTO    v_num_copy
+        FROM    tab_video_rental r 
+        INNER JOIN tab_video_copy c
+        ON      r.copy_id = c.copy_id
+        WHERE   r.customer_id = in_customer_id
+        AND     c.copy_status = 'R';
+
+        SELECT  maximum_rental_days 
+        INTO    v_max 
+        FROM    tab_video v 
+        INNER JOIN tab_video_copy c
+        ON      v.video_id = c.video_id
+        WHERE   c.copy_id = in_copy_id;
+
+        SELECT  COUNT(*) 
+        INTO    v_t 
+        FROM    tab_video_rental r 
+        INNER JOIN tab_video_copy c
+        ON      r.copy_id = c.copy_id
+        WHERE   r.customer_id = in_customer_id
+        AND     c.copy_status = 'R'
+        AND     c.video_id = v_id;
+
+        IF UPPER(v_c_status) = 'IN' THEN
+            DBMS_OUTPUT.PUT_LINE('Your account is inactive');
+        ELSIF v_status = 'R' THEN
+            DBMS_OUTPUT.PUT_LINE('This copy is rented!');
+        ELSIF v_status = 'D' THEN 
+            DBMS_OUTPUT.PUT_LINE('This copy is damaged!');
+        ELSIF TO_CHAR(in_video_checkout_date, 'yyyymmdd') > TO_CHAR(SYSDATE, 'yyyymmdd') THEN
+            DBMS_OUTPUT.PUT_LINE('Check out date is greater than the current date:'|| SYSDATE);
+        ELSIF v_num_copy > 3 THEN
+            DBMS_OUTPUT.PUT_LINE('You may have up to three copies checked out at any one time.');
+        ELSIF v_t > 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Before you returns a copy, you cannot rent a second copy of the same video.' );
+        ELSE
+            UPDATE  tab_video_copy 
+            SET     copy_status = 'R' 
+            WHERE   copy_id = in_copy_id;
+            v_date := in_video_checkout_date + v_max;
+            DBMS_OUTPUT.PUT_LINE('Due days:'|| in_video_checkout_date + v_max);
+        END IF;
+    END IF;
+END;
+
+EXEC proc_video_checkout('C2006', 'VC6008', '23-AUG-15');
+--Part 2.5--
+CREATE OR REPLACE PROCEDURE proc_video_return
+(
+    in_copy_id 			    VARCHAR2, 
+    in_video_return_date 	DATE
+)
+IS
+    CURSOR c_1 IS
+        SELECT  * 
+        FROM    tab_video_copy 
+        WHERE   copy_id = in_copy_id;
+        
+        v_record        tab_video_copy%rowtype;
+BEGIN
+    IF in_video_return_date > SYSDATE THEN
+        RETURN;
+    END IF;      
+    OPEN c_1;
+        FETCH c_1 INTO v_record;
+        IF c_1%NOTFOUND then
+            CLOSE c_1;
+            RETURN;
+        END IF;
+    IF v_record.copy_status <> 'R' THEN
+            CLOSE c_1;
+            RETURN;
+    END IF;
+    UPDATE  tab_video_rental
+    SET     return_date = in_video_return_date 
+    WHERE   copy_id = in_copy_id 
+    AND     return_date IS NULL;
+    
+    UPDATE  tab_video_copy 
+    SET     copy_status = 'A' 
+    WHERE   copy_id = in_copy_id;
+    DBMS_OUTPUT.PUT_LINE('Success!');
+END;
+EXEC proc_video_return('VC5000','15-AUG-17');
+EXEC proc_video_return('VC6002','15-AUG-17');
+
+--Part 2.6--
+CREATE OR REPLACE PROCEDURE proc_unreturned_video
+(
+    in_customer_id VARCHAR2
+)
+IS
+    v_c_id          tab_customer.customer_id%TYPE;
+    v_c_name        tab_customer.customer_name%TYPE;
+    v_c_status      tab_customer.customer_status%TYPE;
+    v_email         tab_customer.email%TYPE;
+    v_phone         tab_customer.phone_number%TYPE;
+    v_n             INTEGER;
+    v_first         tab_video_rental.checkout_date%TYPE;
+    v_last          tab_video_rental.checkout_date%TYPE;
+    v_id            tab_video_copy.copy_id%TYPE;
+    v_vid           tab_video.video_id%TYPE;
+    v_name          tab_video.video_name%TYPE;
+    v_format        tab_video.video_format%TYPE;
+    v_cdate         tab_video_rental.checkout_date%TYPE;    
+    v_ddate         tab_video_rental.due_date%TYPE;
+    
+    CURSOR c_1 IS
+        SELECT  customer_id, customer_name, customer_status, email, phone_number 
+        FROM    tab_customer 
+        WHERE   customer_id = in_customer_id;
+    CURSOR c_r IS
+        SELECT      r.copy_id, v.video_id, v.video_name, v.video_format, r.checkout_date, r.due_date
+        FROM        tab_video_rental r, tab_video_copy c, tab_video v
+        WHERE       r.copy_id = c.copy_id 
+        AND         c.video_id = v.video_id 
+        AND         r.return_date IS NULL 
+        AND         r.customer_id = in_customer_id 
+        ORDER BY    r.due_date, v.video_name;
+BEGIN
+    OPEN c_1;
+        FETCH c_1 INTO v_c_id, v_c_name, v_c_status, v_email, v_phone;
+        IF c_1%NOTFOUND THEN
+            DBMS_OUTPUT.PUT_LINE('The customer (id = ' || in_customer_id || ') is not in the tab_customer table.');
+            CLOSE c_1;
+            RETURN;
+        END IF;
+        
+        SELECT  MIN(checkout_date) 
+        INTO    v_first
+        FROM    tab_video_rental 
+        WHERE   customer_id = in_customer_id;
+        
+        SELECT  MAX(checkout_date) 
+        INTO    v_last
+        FROM    tab_video_rental 
+        WHERE   customer_id = in_customer_id;
+        
+        DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer ID:', 25) || RPAD(v_c_id, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer Name:',25) || RPAD(UPPER(v_c_name), 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer Status:', 25) || RPAD(v_c_status, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Email:', 25) || RPAD(v_email, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Phone Number:', 25) || RPAD(v_phone, 20));
+        
+        IF v_first IS NULL THEN
+            DBMS_OUTPUT.PUT_LINE(RPAD('First Checkout Date:', 25) || RPAD('N/A', 20));
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(RPAD('First Checkout Date:', 25) || RPAD(TO_CHAR(v_first, 'DD-MON-YYYY'), 20));
+        END IF;
+        
+        IF v_last IS NULL THEN
+            DBMS_OUTPUT.PUT_LINE(RPAD('Last Checkout Date:', 25) || RPAD('N/A', 20));
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(RPAD('Last Checkout Date:', 25) || RPAD(TO_CHAR(v_last, 'DD-MON-YYYY'), 20));
+        END IF;  
+    CLOSE c_1;
+    
+    SELECT      COUNT(r.copy_id) 
+    INTO        v_n 
+    FROM        tab_video_rental r, tab_video_copy c, tab_video v
+    WHERE       r.copy_id = c.copy_id 
+    AND         c.video_id = v.video_id 
+    AND         r.return_date IS NULL 
+    AND         r.customer_id = in_customer_id 
+    ORDER BY    r.due_date, v.video_name;  
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Number of Unreturned Videos: ' || v_n);
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+    IF v_n > 0 THEN
+        OPEN c_r;
+            LOOP
+                FETCH c_r INTO v_id, v_vid, v_name, v_format, v_cdate, v_ddate;
+                EXIT WHEN c_r%NOTFOUND;
+                DBMS_OUTPUT.PUT_LINE(RPAD('Copy ID:', 20) || RPAD(v_id, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Video ID:' ,20) || RPAD(v_vid, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Video Name:',20) || RPAD(v_name, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Format:', 20) || RPAD(v_format, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Checkout Date:', 20) || RPAD(TO_CHAR(v_cdate, 'DD-MON-YYYY'), 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Due Date:', 20) || RPAD(TO_CHAR(v_ddate, 'DD-MON-YYYY'), 20));
+                DBMS_OUTPUT.PUT_LINE('--------------------------------------');
+            END LOOP;
+        CLOSE c_r;
+    END IF;
+END;
+
+EXEC proc_unreturned_video('C2004');
+EXEC proc_unreturned_video('C2008');
+EXEC proc_unreturned_video('C2002');
+
+--Part 3--
+CREATE OR REPLACE PACKAGE video_rental_pkg
+AS
+PROCEDURE proc_customer_registration
+(	
+	in_customer_id		    VARCHAR2,
+	in_customer_name 		VARCHAR2,
+    in_customer_status	    CHAR,
+    in_email 			    VARCHAR2, 
+    in_phone_number 		VARCHAR2,
+ 	in_registration_date	DATE
+);
+
+PROCEDURE proc_change_customer_status 
+(
+    in_customer_id 		    VARCHAR2,
+    in_new_customer_status 	VARCHAR2
+);
+
+PROCEDURE proc_video_search 
+(
+    in_video_name 	        VARCHAR2, 
+    in_video_format 	    VARCHAR2 DEFAULT NULL
+);
+
+PROCEDURE proc_video_checkout
+(	
+    in_customer_id		    VARCHAR2, 
+	in_copy_id 			    VARCHAR2, 
+	in_video_checkout_date 	DATE 
+);
+
+PROCEDURE proc_video_return
+(
+    in_copy_id 			    VARCHAR2, 
+    in_video_return_date 	DATE
+);
+
+PROCEDURE proc_unreturned_video
+(
+    in_customer_id          VARCHAR2
+);
+END video_rental_pkg;
+
+CREATE OR REPLACE PACKAGE BODY video_rental_pkg
+AS
+PROCEDURE proc_customer_registration
+(	
+	in_customer_id		    VARCHAR2,
+	in_customer_name 		VARCHAR2,
+    in_customer_status	    CHAR,
+    in_email 			    VARCHAR2, 
+    in_phone_number 		VARCHAR2,
+ 	in_registration_date	DATE
+) 
+IS
+	v_count		NUMBER;
+BEGIN
+	IF LENGTH(TRIM(in_customer_id)) > 15 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+		RETURN;
+	END IF;
+
+	SELECT  COUNT(*)
+	INTO	v_count
+	FROM	tab_customer
+	WHERE	customer_id = in_customer_id;
+
+	IF v_count != 0 THEN
+		DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+		RETURN;
+	END IF;
+
+  	IF TRIM(in_customer_name) is NULL OR LENGTH(TRIM(in_customer_name)) > 30 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_name!');
+		RETURN;
+	END IF;
+ 
+    IF UPPER(TRIM(in_customer_status)) != 'AC' AND UPPER(TRIM(in_customer_status)) != 'IN' THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_customer_status!');
+		RETURN;
+	END IF;
+
+    IF TRIM(in_email) is NULL OR LENGTH(TRIM(in_email)) > 50 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_email!');
+		RETURN;
+	END IF;
+
+	IF TRIM(in_phone_number) is NULL OR LENGTH(TRIM(in_phone_number)) > 50 THEN 
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_phone_number!');
+		RETURN;
+	END IF;
+
+    IF in_registration_date IS NULL OR TO_CHAR(in_registration_date, 'yyyymmdd') < '20000101' 
+                                    OR TO_CHAR(in_registration_date, 'yyyymmdd') > TO_CHAR(sysdate, 'yyyymmdd') THEN
+          	DBMS_OUTPUT.PUT_LINE('Invalid in_registration_date!');
+		RETURN;
+	END IF;
+
+	INSERT INTO tab_customer 
+       	VALUES(TRIM(in_customer_id), UPPER(TRIM(in_customer_name)), UPPER(TRIM(in_customer_status)), TRIM(in_email), TRIM(in_phone_number), in_registration_date, sysdate);
+	COMMIT;
+	
+    DBMS_OUTPUT.PUT_LINE(INITCAP(in_customer_name) || ' has been added into the tab_customer table.');
+		
+EXCEPTION
+	WHEN OTHERS THEN
+		DBMS_OUTPUT.PUT_LINE('My exception: ' || TO_CHAR(SQLCODE) || '   ' || SQLERRM);
+END proc_customer_registration;
+
+PROCEDURE proc_change_customer_status 
+(
+    in_customer_id 		    VARCHAR2,
+    in_new_customer_status 	VARCHAR2
+)
+IS
+    v_n     NUMBER;
+BEGIN
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    tab_customer
+    WHERE   customer_id = in_customer_id;
+    
+    IF v_n = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Invalid in_customer_id!');
+    ELSIF UPPER(in_new_customer_status) != 'AC' AND UPPER(in_new_customer_status) != 'IN' THEN
+        DBMS_OUTPUT.PUT_LINE('Invalid in_new_customer_status!');
+    ELSE
+        UPDATE  tab_customer
+        SET     customer_status = in_new_customer_status,
+                last_update_date = SYSDATE
+        WHERE   customer_id = in_customer_id;
+        DBMS_OUTPUT.PUT_LINE('The status of the customer has been updated.');
+    END IF;
+END proc_change_customer_status;
+
+PROCEDURE proc_video_search 
+(
+    in_video_name 	    VARCHAR2, 
+    in_video_format 	VARCHAR2 DEFAULT NULL
+)
+IS
+    v_name          tab_video.video_name%TYPE;
+    v_copy_id       tab_video_copy.copy_id%TYPE;
+    v_format        tab_video.video_format%TYPE;
+    v_status        tab_video_copy.copy_status%TYPE;
+    v_c_date        tab_video_rental.checkout_date%TYPE;
+    v_d_date        tab_video_rental.due_date%TYPE;
+    v_t             INTEGER;
+    v_a             INTEGER;
+    v_s             VARCHAR2(15);
+    
+    CURSOR c_1 IS
+        SELECT      v.video_name, c.copy_id,  v.video_format, c.copy_status, r.checkout_date, r.due_date 
+        FROM        tab_video v, tab_video_copy c, tab_video_rental r 
+        WHERE       v.video_id = c.video_id(+) 
+        AND         c.copy_id = r.copy_id(+) 
+        AND         UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND         (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL))
+        ORDER BY    v.video_name, c.copy_id;
+    
+    CURSOR c_2 IS
+        SELECT      v.video_name, c.copy_id, v.video_format, c.copy_status, r.checkout_date, r.due_date 
+        FROM        tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE       v.video_id = c.video_id(+) 
+        AND         c.copy_id = r.copy_id(+) 
+        AND         UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND         (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL)) 
+        AND         UPPER(v.video_format) LIKE UPPER(in_video_format)
+        ORDER BY    v.video_name, c.copy_id;
+BEGIN
+    IF in_video_format IS NULL THEN
+        SELECT  COUNT(c.copy_id) 
+        INTO    v_t 
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+) 
+        AND     c.copy_id = r.copy_id(+)  
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) ||  '%' AND c.copy_status <> 'D' 
+        AND     (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL));
+        
+        SELECT  COUNT(c.copy_id)
+        INTO    v_a
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+)
+        AND     c.copy_id = r.copy_id(+)
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%'
+        AND     c.copy_status = 'A';
+        
+        IF v_t = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '. *****');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '. (Available copies: ' || v_a || ') *****');
+        END IF;
+    ELSE
+        SELECT  COUNT(c.copy_id) 
+        INTO    v_t 
+        FROM    tab_video v , tab_video_copy c, tab_video_rental r 
+        WHERE   v.video_id = c.video_id(+) 
+        AND     c.copy_id = r.copy_id(+) 
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%' AND c.copy_status <> 'D' 
+        AND     (c.copy_status = 'A' OR (c.copy_status = 'R' AND r.return_date IS NULL)) 
+        AND     UPPER(v.video_format) LIKE UPPER(in_video_format);	
+        
+        SELECT  COUNT(c.copy_id)
+        INTO    v_a
+        FROM    tab_video v, tab_video_copy c, tab_video_rental r
+        WHERE   v.video_id = c.video_id(+)
+        AND     c.copy_id = r.copy_id(+)
+        AND     UPPER(v.video_name) LIKE '%' || UPPER(in_video_name) || '%'
+        AND     c.copy_status = 'A'
+        AND     UPPER(in_video_format) LIKE UPPER(v.video_format);
+        
+        IF v_t = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '(' || in_video_format || '). *****');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('***** ' || v_t || ' results found for ' || in_video_name || '(' || in_video_format || '). (Available copies: ' || v_a || '). *****');
+        END IF;
+    END IF;
+    
+    IF v_t > 0 THEN
+        DBMS_OUTPUT.PUT_LINE(RPAD('VIDEO NAME', 17) || RPAD('COPE ID', 11) || RPAD('VIDEO FORMAT', 19) || RPAD('COPY STATUS', 15) || RPAD('CHECKOUT DATE', 20) || RPAD('DUE DATE', 18));
+        DBMS_OUTPUT.PUT_LINE(RPAD('-', 98, '-'));
+        
+        IF in_video_format IS NULL THEN
+            OPEN c_1;
+                LOOP
+                    FETCH c_1 INTO v_name, v_copy_id, v_format, v_status, v_c_date, v_d_date;
+                    EXIT WHEN c_1%NOTFOUND;
+                    
+                    IF v_status = 'A' THEN
+                        v_s := 'Available';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 11) || RPAD(v_format, 19) || RPAD(v_s, 15));
+                    ELSIF v_status = 'R' THEN
+                        v_s := 'Rented';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 11) || RPAD(v_format, 19) || RPAD(v_s, 15) || LPAD(TO_CHAR(v_c_date, 'DD-MON-YYYY'), 13) || LPAD(TO_CHAR(v_d_date, 'DD-MON-YYYY'), 15));
+                    END IF;
+                END LOOP;
+            CLOSE c_1;
+        ELSE
+            OPEN c_2;
+                LOOP
+                    FETCH c_2 INTO v_name, v_copy_id, v_format, v_status, v_c_date, v_d_date;
+                    EXIT WHEN c_2%NOTFOUND;
+                    
+                    IF v_status = 'A' THEN
+                        v_s := 'Available';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 15) || RPAD(v_format, 15) || RPAD(v_s, 15));
+                    ELSIF v_status = 'R' THEN
+                        v_s := 'Rented';
+                        DBMS_OUTPUT.PUT_LINE(RPAD(v_name, 17) || RPAD(v_copy_id, 15) || RPAD(v_format, 15) || RPAD(v_s, 15) || RPAD(TO_CHAR(v_c_date, 'DD-MON-YYYY'), 13) || LPAD(TO_CHAR(v_d_date, 'DD-MON-YYYY'), 15));
+                    END IF;
+                END LOOP;
+            CLOSE c_2;
+        END IF;
+    END IF;
+END proc_video_search;
+
+PROCEDURE proc_video_checkout
+(	
+    in_customer_id		    VARCHAR2, 
+	in_copy_id 			    VARCHAR2, 
+	in_video_checkout_date 	DATE 
+)
+IS
+    v_n             NUMBER;
+    v_c_status      VARCHAR2(2);
+    v_status        CHAR;
+    v_num_copy      NUMBER;
+    v_id            VARCHAR2(15);
+    v_max           NUMBER;
+    v_t             NUMBER;
+    v_date          DATE;
+BEGIN
+    SELECT  COUNT(customer_id)
+    INTO    v_n
+    FROM    tab_customer
+    WHERE   customer_id = in_customer_id;
+    IF v_n = 0 THEN 
+        DBMS_OUTPUT.PUT_LINE('There is no customer ID in the database');
+    ELSE
+        SELECT  customer_status 
+        INTO    v_c_status 
+        FROM    tab_customer 
+        WHERE   customer_id = in_customer_id;
+
+        SELECT  copy_status, video_id
+        INTO    v_status, v_id
+        FROM    tab_video_copy 
+        WHERE   copy_id = in_copy_id;
+
+        SELECT  COUNT(*) 
+        INTO    v_num_copy
+        FROM    tab_video_rental r 
+        INNER JOIN tab_video_copy c
+        ON      r.copy_id = c.copy_id
+        WHERE   r.customer_id = in_customer_id
+        AND     c.copy_status = 'R';
+
+        SELECT  maximum_rental_days 
+        INTO    v_max 
+        FROM    tab_video v 
+        INNER JOIN tab_video_copy c
+        ON      v.video_id = c.video_id
+        WHERE   c.copy_id = in_copy_id;
+
+        SELECT  COUNT(*) 
+        INTO    v_t 
+        FROM    tab_video_rental r 
+        INNER JOIN tab_video_copy c
+        ON      r.copy_id = c.copy_id
+        WHERE   r.customer_id = in_customer_id
+        AND     c.copy_status = 'R'
+        AND     c.video_id = v_id;
+
+        IF UPPER(v_c_status) = 'IN' THEN
+            DBMS_OUTPUT.PUT_LINE('Your account is inactive');
+        ELSIF v_status = 'R' THEN
+            DBMS_OUTPUT.PUT_LINE('This copy is rented!');
+        ELSIF v_status = 'D' THEN 
+            DBMS_OUTPUT.PUT_LINE('This copy is damaged!');
+        ELSIF TO_CHAR(in_video_checkout_date, 'yyyymmdd') > TO_CHAR(SYSDATE, 'yyyymmdd') THEN
+            DBMS_OUTPUT.PUT_LINE('Check out date is greater than the current date:'|| SYSDATE);
+        ELSIF v_num_copy > 3 THEN
+            DBMS_OUTPUT.PUT_LINE('You may have up to three copies checked out at any one time.');
+        ELSIF v_t > 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Before you returns a copy, you cannot rent a second copy of the same video.' );
+        ELSE
+            UPDATE  tab_video_copy 
+            SET     copy_status = 'R' 
+            WHERE   copy_id = in_copy_id;
+            v_date := in_video_checkout_date + v_max;
+            DBMS_OUTPUT.PUT_LINE('Due days:'|| in_video_checkout_date + v_max);
+        END IF;
+    END IF;
+END proc_video_checkout;
+
+PROCEDURE proc_video_return
+(
+    in_copy_id 			    VARCHAR2, 
+    in_video_return_date 	DATE
+)
+IS
+    CURSOR c_1 IS
+        SELECT  * 
+        FROM    tab_video_copy 
+        WHERE   copy_id = in_copy_id;
+        
+        v_record        tab_video_copy%rowtype;
+BEGIN
+    IF in_video_return_date > SYSDATE THEN
+        RETURN;
+    END IF;      
+    OPEN c_1;
+        FETCH c_1 INTO v_record;
+        IF c_1%NOTFOUND then
+            CLOSE c_1;
+            RETURN;
+        END IF;
+    IF v_record.copy_status <> 'R' THEN
+            CLOSE c_1;
+            RETURN;
+    END IF;
+    UPDATE  tab_video_rental
+    SET     return_date = in_video_return_date 
+    WHERE   copy_id = in_copy_id 
+    AND     return_date IS NULL;
+    
+    UPDATE  tab_video_copy 
+    SET     copy_status = 'A' 
+    WHERE   copy_id = in_copy_id;
+    DBMS_OUTPUT.PUT_LINE('Success!');
+END proc_video_return;
+
+PROCEDURE proc_unreturned_video
+(
+    in_customer_id VARCHAR2
+)
+IS
+    v_c_id          tab_customer.customer_id%TYPE;
+    v_c_name        tab_customer.customer_name%TYPE;
+    v_c_status      tab_customer.customer_status%TYPE;
+    v_email         tab_customer.email%TYPE;
+    v_phone         tab_customer.phone_number%TYPE;
+    v_n             INTEGER;
+    v_first         tab_video_rental.checkout_date%TYPE;
+    v_last          tab_video_rental.checkout_date%TYPE;
+    v_id            tab_video_copy.copy_id%TYPE;
+    v_vid           tab_video.video_id%TYPE;
+    v_name          tab_video.video_name%TYPE;
+    v_format        tab_video.video_format%TYPE;
+    v_cdate         tab_video_rental.checkout_date%TYPE;    
+    v_ddate         tab_video_rental.due_date%TYPE;
+    
+    CURSOR c_1 IS
+        SELECT  customer_id, customer_name, customer_status, email, phone_number 
+        FROM    tab_customer 
+        WHERE   customer_id = in_customer_id;
+    CURSOR c_r IS
+        SELECT      r.copy_id, v.video_id, v.video_name, v.video_format, r.checkout_date, r.due_date
+        FROM        tab_video_rental r, tab_video_copy c, tab_video v
+        WHERE       r.copy_id = c.copy_id 
+        AND         c.video_id = v.video_id 
+        AND         r.return_date IS NULL 
+        AND         r.customer_id = in_customer_id 
+        ORDER BY    r.due_date, v.video_name;
+BEGIN
+    OPEN c_1;
+        FETCH c_1 INTO v_c_id, v_c_name, v_c_status, v_email, v_phone;
+        IF c_1%NOTFOUND THEN
+            DBMS_OUTPUT.PUT_LINE('The customer (id = ' || in_customer_id || ') is not in the tab_customer table.');
+            CLOSE c_1;
+            RETURN;
+        END IF;
+        
+        SELECT  MIN(checkout_date) 
+        INTO    v_first
+        FROM    tab_video_rental 
+        WHERE   customer_id = in_customer_id;
+        
+        SELECT  MAX(checkout_date) 
+        INTO    v_last
+        FROM    tab_video_rental 
+        WHERE   customer_id = in_customer_id;
+        
+        DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer ID:', 25) || RPAD(v_c_id, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer Name:',25) || RPAD(UPPER(v_c_name), 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Customer Status:', 25) || RPAD(v_c_status, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Email:', 25) || RPAD(v_email, 20));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Phone Number:', 25) || RPAD(v_phone, 20));
+        
+        IF v_first IS NULL THEN
+            DBMS_OUTPUT.PUT_LINE(RPAD('First Checkout Date:', 25) || RPAD('N/A', 20));
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(RPAD('First Checkout Date:', 25) || RPAD(TO_CHAR(v_first, 'DD-MON-YYYY'), 20));
+        END IF;
+        
+        IF v_last IS NULL THEN
+            DBMS_OUTPUT.PUT_LINE(RPAD('Last Checkout Date:', 25) || RPAD('N/A', 20));
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(RPAD('Last Checkout Date:', 25) || RPAD(TO_CHAR(v_last, 'DD-MON-YYYY'), 20));
+        END IF;  
+    CLOSE c_1;
+    
+    SELECT      COUNT(r.copy_id) 
+    INTO        v_n 
+    FROM        tab_video_rental r, tab_video_copy c, tab_video v
+    WHERE       r.copy_id = c.copy_id 
+    AND         c.video_id = v.video_id 
+    AND         r.return_date IS NULL 
+    AND         r.customer_id = in_customer_id 
+    ORDER BY    r.due_date, v.video_name;  
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Number of Unreturned Videos: ' || v_n);
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+    IF v_n > 0 THEN
+        OPEN c_r;
+            LOOP
+                FETCH c_r INTO v_id, v_vid, v_name, v_format, v_cdate, v_ddate;
+                EXIT WHEN c_r%NOTFOUND;
+                DBMS_OUTPUT.PUT_LINE(RPAD('Copy ID:', 20) || RPAD(v_id, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Video ID:' ,20) || RPAD(v_vid, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Video Name:',20) || RPAD(v_name, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Format:', 20) || RPAD(v_format, 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Checkout Date:', 20) || RPAD(TO_CHAR(v_cdate, 'DD-MON-YYYY'), 20));
+                DBMS_OUTPUT.PUT_LINE(RPAD('Due Date:', 20) || RPAD(TO_CHAR(v_ddate, 'DD-MON-YYYY'), 20));
+                DBMS_OUTPUT.PUT_LINE('--------------------------------------');
+            END LOOP;
+        CLOSE c_r;
+    END IF;
+END proc_unreturned_video;
+END video_rental_pkg;
+
+EXEC video_rental_pkg.proc_video_search('Another');

@@ -1,0 +1,182 @@
+--Part2--
+
+//Based on the DPUCC_USER table created in (1), create a procedure for validating user login.
+
+CREATE OR REPLACE PROCEDURE check_dpucc_user_login
+(	
+	in_dpucc_id		NUMBER,
+	in_password		VARCHAR2,
+  	out_code 		OUT VARCHAR2
+)
+AS
+    v_n number;
+    v_lock CHAR;
+    v_pw VARCHAR2(40);
+    v_f_count NUMBER;
+BEGIN
+    SELECT  COUNT(*) 
+    INTO    v_n 
+    FROM    dpucc_user 
+    WHERE   dpucc_id = in_dpucc_id;
+    
+    IF v_n = 0 THEN
+        out_code := 'err_bad_id';
+    ELSE
+        SELECT  is_account_locked_out, password, failed_password_attempt_count
+        INTO    v_lock, v_pw, v_f_count
+        FROM    dpucc_user 
+        WHERE   dpucc_id = in_dpucc_id;
+        
+        IF v_lock = 'Y' THEN 
+            out_code := 'err_locked_out';
+        ELSIF in_password = v_pw THEN
+            UPDATE  dpucc_user 
+            SET     last_successful_login_time = SYSDATE, 
+                    failed_password_attempt_count = 0,
+                    last_failed_login_time = NULL 
+            WHERE   dpucc_id = in_dpucc_id;
+            out_code := 'ok';
+        ELSIF v_f_count !=5 THEN 
+            UPDATE  dpucc_user 
+            SET     failed_password_attempt_count = failed_password_attempt_count + 1,
+                    last_failed_login_time = SYSDATE
+            WHERE   dpucc_id = in_dpucc_id;
+            out_code := 'err_bad_pwd';
+        ELSIF v_f_count = 5 THEN 
+            UPDATE  dpucc_user 
+            SET     failed_password_attempt_count = failed_password_attempt_count + 1,
+                    last_failed_login_time = SYSDATE,
+                    is_account_locked_out = 'Y',
+                    last_account_locked_out_time = SYSDATE 
+            WHERE   dpucc_id = in_dpucc_id;
+            out_code := 'err_bad_pwd_5';
+        END IF;
+    END IF;
+END;
+-----------------------
+DECLARE 
+    v_m     VARCHAR2(20);
+BEGIN
+    --1--
+    check_dpucc_user_login(82000, 'fdjKKL9891', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --2--
+    check_dpucc_user_login(82004, 'KcxweSYg5551', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --3--
+    check_dpucc_user_login(82003, 'gc88Wmvpx81', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --4 Case1--
+    check_dpucc_user_login(82003, 'gc88Wmvpx8', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --4 Case2--
+    check_dpucc_user_login(82004, 'KcxweSYg555', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+END;
+
+--Part3--
+
+//Based on the DPUCC_USER table created in (1), create a procedure to change the password for a given user ID. 
+//	A password is case-sensitive.
+//	A password must be between 8 and 15 characters in length.
+//	A password must include at least one uppercase alphabetic character (A-Z), one lowercase alphabetic character (a-z), 
+//	and one numeric character (0-9). 
+//	You need to update the PASSWORD and LAST_PASSWORD_CHANGED_TIME columns if the password can be reset. (Oracle SYSDATE function 
+//	returns the current date and time.)
+
+
+CREATE OR REPLACE PROCEDURE check_dpucc_user_password
+(	
+    in_dpucc_id		    NUMBER,
+    in_current_password	VARCHAR2,
+    in_new_password		VARCHAR2,
+	out_code 			OUT VARCHAR2 
+) 
+AS
+    v_n     NUMBER;
+    v_pw    VARCHAR(40);
+BEGIN
+    SELECT  COUNT(*) 
+    INTO    v_n 
+    FROM    dpucc_user 
+    WHERE   dpucc_id = in_dpucc_id;
+    
+    IF v_n = 0 THEN
+        out_code := 'err_bad_id';
+    ELSE 
+        SELECT  password 
+        INTO    v_pw 
+        FROM    dpucc_user 
+        WHERE   dpucc_id = in_dpucc_id;
+        
+        IF in_current_password != v_pw THEN 
+            out_code := 'err_bad_curr_pwd';
+        ELSIF in_new_password = v_pw THEN 
+            out_code := 'err_bad_new_pwd_1';
+        ELSIF length(in_new_password) <8 OR length(in_new_password) > 15 THEN 
+            out_code := 'err_bad_new_pwd_2';
+        ELSE
+            SELECT  COUNT(*) 
+            INTO    v_n 
+            FROM    dual 
+            WHERE   REGEXP_LIKE(in_new_password,'[A-Z]');
+            
+            IF v_n = 0 THEN 
+                out_code := 'err_bad_new_pwd_3';
+            ELSE 
+                SELECT  COUNT(*) 
+                INTO    v_n 
+                FROM    dual 
+                WHERE   REGEXP_LIKE(in_new_password,'[a-z]');
+                
+                IF v_n = 0 THEN 
+                    out_code := 'err_bad_new_pwd_4';
+                ELSE
+                    SELECT  COUNT(*) 
+                    INTO    v_n 
+                    FROM    dual 
+                    WHERE   REGEXP_LIKE(in_new_password,'[0-9]');
+                    
+                    IF v_n = 0 THEN 
+                        out_code := 'err_bad_new_pwd_5';
+                    ELSE 
+                        UPDATE  dpucc_user 
+                        SET     password = in_new_password,
+                                last_password_changed_time = SYSDATE 
+                        WHERE   dpucc_id = in_dpucc_id;
+                        out_code := 'ok';
+                    END IF;
+                END IF;
+            END IF;
+        END IF;
+    END IF;
+END;
+--------------------------------------------------------------------------------------------------------------
+DECLARE 
+    v_m     VARCHAR2(20);
+BEGIN
+    --1--
+    check_dpucc_user_password(82000, 'fdjKKL9891', 'fdjKKL9891', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --2--
+    check_dpucc_user_password(82004, 'KcxweSYg555', 'KcxweSYg5552', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --3--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'KcxweSYg5551', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --4--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'Kcxw5', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --5--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'kcxwesyg5551', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --6--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'KCXWESYG5551', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --7--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'KcxweSYg', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+    --8--
+    check_dpucc_user_password(82004, 'KcxweSYg5551', 'KcxweSYg5552', v_m);
+    DBMS_OUTPUT.PUT_LINE(v_m);
+END;

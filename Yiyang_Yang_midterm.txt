@@ -1,0 +1,266 @@
+Part I:
+Q1: B, Q2: C, Q3: B, Q4: C, Q5: B, Q6: I, Q7: C, Q8: B, Q9: A, Q10: E(B), Q11: B2(A3), Q12: E
+Part II:
+--Part2.1--
+
+ACCEPT p_1 PROMPT 'Please enter the last name:'
+DECLARE
+    v_input_name        VARCHAR2(30) := '&p_1';
+    v_id                VARCHAR2(30);
+    v_id1               VARCHAR2(30);
+    v_last              VARCHAR2(30);
+    v_first             VARCHAR2(30);
+    v_date              tab_employee.hire_date%TYPE;
+    v_status            VARCHAR2(30);
+    v_emp_type          VARCHAR2(30);
+    v_p_type            VARCHAR2(30);
+    v_n                 NUMBER;
+
+    CURSOR c_emp IS
+        SELECT      employee_id, last_name, first_name, hire_date, employee_type, employee_status
+        FROM        tab_employee
+        ORDER BY    last_name ASC, first_name ASC, hire_date ASC;
+    
+    CURSOR c_emp2 IS
+        SELECT      employee_id, last_name, first_name, hire_date, employee_type, employee_status
+        FROM        tab_employee
+        WHERE       UPPER(last_name) = UPPER(v_input_name)
+        ORDER BY    last_name ASC, first_name ASC, hire_date ASC;
+    
+    CURSOR c_p IS
+        SELECT      e.employee_id, NVL(p.pilot_type, 'N/A')
+        FROM        tab_employee e
+        LEFT OUTER JOIN tab_pilot p
+        ON          e.employee_id = p.employee_id; 
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('EMP ID' || LPAD(' ', 4) ||'FULL NAME' || LPAD(' ', 10) ||'HIRE DATE' || LPAD(' ', 6) ||'EMP STATUS'|| LPAD(' ', 6) ||'EMP TYPE' || LPAD(' ', 6) ||'PILOT TYPE');
+    DBMS_OUTPUT.PUT_LINE(RPAD('-', 104 , '-'));
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    tab_employee
+    WHERE   UPPER(last_name) = UPPER(v_input_name);
+    
+    IF  v_n = 0 THEN
+    OPEN c_emp;
+    LOOP
+        FETCH c_emp INTO v_id, v_last, v_first, v_date, v_emp_type, v_status;
+        EXIT WHEN c_emp%NOTFOUND;
+        CASE
+            WHEN v_status = 'AC' THEN
+                CASE
+                    WHEN v_emp_type = 'FT' THEN
+                    v_status := 'Active'; 
+                    v_emp_type := 'Full-Time';
+                    WHEN v_emp_type = 'PT' THEN
+                    v_status := 'Active';
+                    v_emp_type := 'Part-Time';
+                END CASE;
+            WHEN v_status = 'IN' THEN
+                CASE
+                    WHEN v_emp_type = 'FT' THEN
+                    v_status := 'Inactive'; 
+                    v_emp_type := 'Full-Time';
+                    WHEN v_emp_type = 'PT' THEN
+                    v_status := 'Inactive';
+                    v_emp_type := 'Part-Time';
+                END CASE;
+            END CASE;
+            OPEN c_p;
+            LOOP
+                FETCH c_p INTO v_id1, v_p_type;
+                EXIT WHEN c_p%NOTFOUND;
+                IF v_id1 = v_id THEN
+                DBMS_OUTPUT.PUT_LINE(RPAD(v_id, 10)||v_last || ', ' || RPAD(v_first, 19 - length(v_last) - 2) || RPAD(v_date, 15) || RPAD(v_status, 16) || RPAD(v_emp_type, 14) || v_p_type);
+                END IF;
+            END LOOP;
+            CLOSE c_p;
+            
+    END LOOP;
+    CLOSE c_emp;
+    ELSE
+    OPEN c_emp2;
+    LOOP
+        FETCH c_emp2 INTO v_id, v_last, v_first, v_date, v_emp_type, v_status;
+        EXIT WHEN c_emp2%NOTFOUND;
+        CASE
+            WHEN v_status = 'AC' THEN
+                CASE
+                    WHEN v_emp_type = 'FT' THEN
+                    v_status := 'Active'; 
+                    v_emp_type := 'Full-Time';
+                    WHEN v_emp_type = 'PT' THEN
+                    v_status := 'Active';
+                    v_emp_type := 'Part-Time';
+                END CASE;
+            WHEN v_status = 'IN' THEN
+                CASE
+                    WHEN v_emp_type = 'FT' THEN
+                    v_status := 'Inactive'; 
+                    v_emp_type := 'Full-Time';
+                    WHEN v_emp_type = 'PT' THEN
+                    v_status := 'Inactive';
+                    v_emp_type := 'Part-Time';
+                END CASE;
+            END CASE;OPEN c_p;
+            LOOP
+                FETCH c_p INTO v_id1, v_p_type;
+                EXIT WHEN c_p%NOTFOUND;
+                IF v_id1 = v_id THEN
+                DBMS_OUTPUT.PUT_LINE(RPAD(v_id, 10)||v_last || ', ' || RPAD(v_first, 19 - length(v_last) - 2) || RPAD(v_date, 15) || RPAD(v_status, 16) || RPAD(v_emp_type, 14) || v_p_type);
+                END IF;
+            END LOOP;
+            CLOSE c_p;
+    END LOOP;
+    CLOSE c_emp2;
+    END IF;
+END;
+
+--Part2.2--
+ACCEPT p_1 PROMPT 'Please enter 1 or 2:'
+DECLARE
+    v_input_num     NUMBER := &p_1;
+    v_month         NUMBER;
+    v_day           NUMBER;
+    v_rank          NUMBER;
+    v_output        VARCHAR(100);
+    
+    CURSOR c_m IS
+        SELECT      DISTINCT birthday_month
+        FROM        tab_birthday
+        ORDER BY    birthday_month ASC;
+    CURSOR c_bm IS
+        SELECT      birthday_day, birthday_rank
+        FROM        tab_birthday
+        WHERE       birthday_month = v_month
+        ORDER BY    birthday_month ASC, birthday_rank ASC;
+    CURSOR c_bl IS
+        SELECT      birthday_day, birthday_rank
+        FROM        tab_birthday
+        WHERE       birthday_month = v_month
+        ORDER BY    birthday_month ASC, birthday_rank DESC;
+BEGIN
+    IF (v_input_num = 1) THEN
+    DBMS_OUTPUT.PUT_LINE('Month' || LPAD(' ', 8) || 'Most Popular Birthday (Day/Rank)');
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 48, '-'));
+    OPEN c_m;
+    LOOP
+        FETCH c_m INTO v_month;
+        EXIT WHEN c_m%NOTFOUND;
+        OPEN c_bm;
+            FETCH c_bm INTO v_day, v_rank;
+            v_output := '?';
+            FOR i IN 1..5 LOOP
+                IF v_output != '?' THEN
+                    v_output := v_output || ' ' || TO_CHAR(v_day, '09') || '/' || TRIM(TO_CHAR(v_rank, '099'));
+                ELSE
+                    v_output :=  TO_CHAR(v_day, '09') || '/' || TRIM(TO_CHAR(v_rank, '099'));
+                END IF;
+                FETCH c_bm INTO v_day, v_rank;
+                EXIT WHEN c_bm%NOTFOUND;
+            END LOOP;
+            DBMS_OUTPUT.PUT_LINE(LPAD(v_month, 5) || LPAD(' ', 4) || v_output);
+        CLOSE c_bm;
+    END LOOP;
+    CLOSE c_m;
+    ELSIF v_input_num = 2 THEN
+    DBMS_OUTPUT.PUT_LINE('Month' || LPAD(' ', 8) || 'Least Popular Birthday (Day/Rank)');
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 48, '-'));
+    OPEN c_m;
+    LOOP
+        FETCH c_m INTO v_month;
+        EXIT WHEN c_m%NOTFOUND;
+        OPEN c_bl;
+            FETCH c_bl INTO v_day, v_rank;
+            v_output := '?';
+            FOR i IN 1..5 LOOP
+                IF v_output != '?' THEN
+                    v_output := v_output || ' ' || TO_CHAR(v_day, '09') || '/' || TRIM(TO_CHAR(v_rank, '099'));
+                ELSE
+                    v_output :=  TO_CHAR(v_day, '09') || '/' || TRIM(TO_CHAR(v_rank, '099'));
+                END IF;
+                FETCH c_bl INTO v_day, v_rank;
+                EXIT WHEN c_bl%NOTFOUND;
+            END LOOP;
+            DBMS_OUTPUT.PUT_LINE(LPAD(v_month, 5) || LPAD(' ', 4) || v_output);
+        CLOSE c_bl;
+    END LOOP;
+    CLOSE c_m;
+    ELSE
+    DBMS_OUTPUT.PUT_LINE('Invalid number:' || v_input_num);
+    END IF;
+END;
+
+--Part3.2--
+DECLARE
+    v_day       VARCHAR2(20);
+    v_name      VARCHAR2(20);
+    v_n         NUMBER;
+    v_max       NUMBER;
+    v_date      DATE;
+    v_job       VARCHAR2(50);
+    v_sal       NUMBER;
+    v_e_id      NUMBER;
+    v_d_name    VARCHAR2(20);
+    v_emp_num   NUMBER;
+    v_id        NUMBER;
+    v_m_id      NUMBER;
+    v_m_name    VARCHAR2(20);
+    v_m_sal     NUMBER;
+    
+    CURSOR c_d IS
+        SELECT      TO_CHAR(hire_date, 'Day'), COUNT(*)
+        FROM        employee
+        GROUP BY    TO_CHAR(hire_date, 'Day')
+        ORDER BY    TO_CHAR(hire_date, 'Day') DESC;
+    
+    CURSOR c_emp IS
+        SELECT      hire_date, employee_name, job_title, salary, department_id, employee_id, manager_id
+        FROM        employee
+        WHERE       UPPER(TO_CHAR(hire_date, 'Day')) = UPPER(v_day)
+        ORDER BY    hire_date ASC;
+        
+    CURSOR c_dpt IS
+        SELECT      department_name
+        FROM        department
+        WHERE       department_id = v_e_id;
+    
+BEGIN
+        SELECT      MAX(crt)
+        INTO        v_max
+        FROM        (SELECT     TO_CHAR(hire_date, 'Day'), COUNT(*) crt
+                     FROM       employee
+                     GROUP BY   TO_CHAR(hire_date, 'Day'));
+    OPEN c_d;
+    LOOP
+        FETCH c_d INTO v_day, v_n;
+        EXIT WHEN c_d%NOTFOUND;
+        IF v_n = v_max THEN
+        DBMS_OUTPUT.PUT_LINE(LPAD('=', 123, '='));
+        DBMS_OUTPUT.PUT_LINE(v_day || ' (' || v_n || ' employees)');
+        DBMS_OUTPUT.PUT_LINE(RPAD('HIRE DATE', 12) || RPAD('NAME', 11) || RPAD('JOB TITLE', 33) || RPAD('SALARY', 9) || RPAD('# OF EMP', 11) || RPAD('DEPARTMENT NAME', 18) || RPAD('MANAGER NAME', 15) || 'MANAGER SALARY');
+        DBMS_OUTPUT.PUT_LINE(LPAD('-', 123, '-'));
+        OPEN c_emp;
+        LOOP
+            FETCH c_emp INTO v_date, v_name, v_job, v_sal, v_e_id, v_id, v_m_id;
+            EXIT WHEN c_emp%NOTFOUND;          
+            IF UPPER(v_job) = 'TBA' THEN
+                DBMS_OUTPUT.PUT_LINE(RPAD(v_date, 12) || RPAD(v_name, 11) || RPAD(v_job, 29) || TO_CHAR(v_sal, '$9,990.99') || LPAD(' ', 11) || LPAD(' ', 3) ||RPAD('------', 17) || RPAD('------', 20)|| '------');
+            ELSE 
+                SELECT  department_name
+                INTO    v_d_name
+                FROM    department
+                WHERE   department_id = v_e_id;
+                
+                SELECT  employee_name, salary
+                INTO    v_m_name, v_m_sal
+                FROM    employee
+                WHERE   employee_id = v_m_id;
+                
+                DBMS_OUTPUT.PUT_LINE(RPAD(v_date, 12) || RPAD(v_name, 11) || RPAD(v_job, 29) || TO_CHAR(v_sal, '$9,990.99') || LPAD(' ', 11) || LPAD(' ', 3) ||RPAD(v_d_name, 17) || RPAD(v_m_name, 20)|| TO_CHAR(v_m_sal, '$9,990.99'));
+            END IF;
+        END LOOP;
+        CLOSE c_emp;
+        END IF;
+    END LOOP;
+    CLOSE c_d;
+END;

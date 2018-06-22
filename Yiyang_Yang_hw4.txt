@@ -1,0 +1,155 @@
+--Part4.1--
+
+//Based on the tables created in Assignment #1, write a PL/SQL anonymous block to find all departments that have more than TWO employees 
+//whose salaries are above 70% of the maximum (highest) salary of their respective departments. For each of these departments, your program 
+//must display the department ID, department name, and location of the department, the earliest and latest hire dates in the department, 
+//the average salary of the department, the minimum salary of the department, the maximum salary of the department, 70% of the maximum 
+//salary of the department, the number of the corresponding employees, and the corresponding employee names alone with their salaries. 
+//Make sure that employees from the same department must be in the same line and each name-salary pair is separated by a semicolon (;). 
+//(e.g., LEE $2,400.00; WILSON $3,000.00; WOLFE $2,500.00). You will lose some points if you fail to do so. Sort your output in ascending 
+//order by the department ID and then the employee name.
+
+DECLARE
+    max_sal           employee.salary%TYPE;
+    min_sal           employee.salary%TYPE;
+    avg_sal           employee.salary%TYPE;
+    max_date          employee.hire_date%TYPE;
+    min_date          employee.hire_date%TYPE;
+    emp_num           NUMBER;
+    v_output          VARCHAR(200);
+    
+    CURSOR c_dpt IS
+        SELECT      department_id, department_name, location
+        FROM        department 
+        ORDER BY    department_id ASC; 
+    
+    CURSOR c_emp(p_id NUMBER) IS
+        SELECT      employee_name, salary
+        FROM        employee
+        WHERE       department_id = p_id
+        ORDER BY    employee_name ASC;
+        
+BEGIN
+    FOR idx_1 IN c_dpt LOOP
+        SELECT  MAX(salary), MIN(salary), AVG(salary), MAX(hire_date), MIN(hire_date)
+        INTO    max_sal, min_sal, avg_sal, max_date, min_date
+        FROM    employee
+        WHERE   department_id = idx_1.department_id;
+        
+        SELECT  COUNT(*)
+        INTO    emp_num
+        FROM    employee
+        WHERE   salary > max_sal * 0.7
+        AND     department_id = idx_1.department_id;
+        IF emp_num > 2 THEN
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT ID:' || LPAD(idx_1.department_id, 11));
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT NAME:' || LPAD(' ', 7) ||idx_1.department_name);
+        DBMS_OUTPUT.PUT_LINE('LOCATION:' || LPAD(' ', 14) || idx_1.location);
+        DBMS_OUTPUT.PUT_LINE('EARLIEST HIRE DATE:' || LPAD(' ', 4) || TO_CHAR(min_date, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE('LATEST HIRE DATE:' || LPAD(' ', 6) || TO_CHAR(max_date, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE('AVERAGE SALARY:' || LPAD(' ', 7) || TO_CHAR(avg_sal, '$9,990.99'));
+        DBMS_OUTPUT.PUT_LINE('MINIMUM SALARY:' || LPAD(' ', 7) ||TO_CHAR(min_sal, '$9,990.99'));
+        DBMS_OUTPUT.PUT_LINE('MAXIMUM SALARY:' || LPAD(' ', 7) ||TO_CHAR(max_sal, '$9,990.99'));
+        DBMS_OUTPUT.PUT_LINE('70% OF MAXIMUM SALARY:' || TO_CHAR(max_sal * 0.7, '$9,990.99'));
+        DBMS_OUTPUT.PUT_LINE('There are ' || emp_num || ' employees whose salaries are above' || TO_CHAR(max_sal * 0.7, '$9,990.99') || '.');
+        v_output := '?';
+        FOR idx_2 in c_emp(idx_1.department_id) LOOP
+            IF v_output != '?' THEN
+            v_output := v_output || ';' || ' ' || idx_2.employee_name || ' ' || TRIM(TO_CHAR(ROUND(idx_2.salary, 2), '$9,990.99'));
+            ELSE
+            v_output :=  idx_2.employee_name || ' ' || TRIM(TO_CHAR(ROUND(idx_2.salary, 2), '$9,990.99'));
+            END IF;
+        END LOOP;
+        DBMS_OUTPUT.PUT_LINE('EMPLOYEE NAME AND SALARY: ' || v_output);
+        DBMS_OUTPUT.NEW_LINE();
+        END IF;
+    END LOOP;
+END;
+
+--Part4.2--
+
+//Based on the WORLD_REGION table, write a PL/SQL anonymous block that accepts a region name (CHILD_REGION) from the user input and 
+//displays all its parent regions.
+
+CREATE TABLE world_region
+(
+    	PARENT_REGION  	VARCHAR2(30) NOT NULL,
+    	CHILD_REGION  	VARCHAR2(30) NOT NULL
+);
+/
+INSERT INTO world_region VALUES('***','Asia');
+INSERT INTO world_region VALUES('***','Australia');
+INSERT INTO world_region VALUES('***','Europe');
+INSERT INTO world_region VALUES('***','North America');
+INSERT INTO world_region VALUES('Asia','China');
+INSERT INTO world_region VALUES('Asia','Japan');
+INSERT INTO world_region VALUES('Australia','New South Wales');
+INSERT INTO world_region VALUES('New South Wales','Sydney');
+INSERT INTO world_region VALUES('Canada','Ontario');
+INSERT INTO world_region VALUES('China','Beijing');
+INSERT INTO world_region VALUES('England','London');
+INSERT INTO world_region VALUES('Europe','United Kingdom');
+INSERT INTO world_region VALUES('Illinois','Aurora');
+INSERT INTO world_region VALUES('Illinois','Cook County');
+INSERT INTO world_region VALUES('Illinois','Rockford');
+INSERT INTO world_region VALUES('Wisconsin','Madison'); 
+INSERT INTO world_region VALUES('Japan','Osaka');
+INSERT INTO world_region VALUES('Japan','Tokyo');
+INSERT INTO world_region VALUES('North America','Canada');
+INSERT INTO world_region VALUES('North America','United States');
+INSERT INTO world_region VALUES('Ontario','Ottawa');
+INSERT INTO world_region VALUES('Ontario','Toronto');
+INSERT INTO world_region VALUES('United States','Colorado');
+INSERT INTO world_region VALUES('United States','Illinois');
+INSERT INTO world_region VALUES('United States','Texas');
+INSERT INTO world_region VALUES('United Kingdom','England'); 
+INSERT INTO world_region VALUES('Texas','Rockford');
+INSERT INTO world_region VALUES('Colorado','Aurora');
+INSERT INTO world_region VALUES('Cook County','Chicago');
+COMMIT;
+
+ACCEPT p_1 PROMPT 'Please enter the region name(CHILD_REGION):'
+DECLARE
+    v_child             VARCHAR2(40):= '&p_1';
+    v_n                 NUMBER;
+    v_output            VARCHAR2(400);
+    
+    CURSOR c_child IS
+        SELECT  UPPER(parent_region)
+        FROM    world_region
+        WHERE   UPPER(child_region) = UPPER(v_child)
+        AND     parent_region <> '***';
+    
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('USER INPUT:');
+    DBMS_OUTPUT.PUT_LINE(v_child);
+    DBMS_OUTPUT.NEW_LINE();
+    
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    world_region
+    WHERE   UPPER(child_region) = UPPER(v_child);
+    
+    IF v_n = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('MY OUTPUT:');
+        DBMS_OUTPUT.PUT_LINE(v_child || ' is not in the table.');
+    ELSE
+        v_output := '(1)[' || UPPER(v_child) || ']'; 
+        v_n := 1;
+        LOOP
+            OPEN c_child;
+            FETCH c_child INTO v_child;
+            IF c_child%FOUND THEN
+                v_n := v_n + 1;
+                v_output := v_output || ' ==> (' || TO_CHAR(v_n) || ')[' || v_child || ']';
+                FETCH c_child INTO v_child;
+            ELSE
+                EXIT;
+            END IF;
+            CLOSE c_child;
+        END LOOP;
+        DBMS_OUTPUT.PUT_LINE('MY OUTPUT:');
+        DBMS_OUTPUT.PUT_LINE('NUMBER OF REGION NAMES: ' || v_n);
+        DBMS_OUTPUT.PUT_LINE(v_output);
+    END IF;
+END;

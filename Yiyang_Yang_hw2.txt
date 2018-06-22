@@ -1,0 +1,223 @@
+--Part3.1--
+
+//Based on the DEPARTMENT and EMPLOYEE tables created in Assignment #1, write a PL/SQL anonymous block that accepts an employee ID from the user input and displays 1) the employee¡¯s name, job title, hire date, and total pay (salary + commission), 2) his/her manager¡¯s name, job title, hire date, and total pay (salary + commission), 3) the name and location of the department where the employee works, 4) the number of employees in the department where the employee works, and 5) the number of employees in the company. 
+//	You will receive 0 points if you submit more than one PL/SQL program. 
+//	If the employee ID from the user input is not in the EMPLOYEE table (EMPLOYEE_ID), your program displays a message telling the user that the employee ID is not in the table.
+//	Your program must display the total pay with a dollar ($) sign, a comma, and two decimal places (e.g., $1,234.56). 
+//	The hire date must be displayed in the DD-MON-YYYY format (4-digit year).
+//	If the employee does not have a manager, the manager¡¯s name, job title, hire date and total pay must be shown as ¡°N/A¡±.
+//	If the employee does not belong to any department, the name and location of the department must be shown as ¡°N/A¡±, and the number of employees in the department must be shown as ¡°0¡±.
+//	You will lose 5 points if your output does not have ¡°User Input:¡±, ¡°My Output:¡±, ¡°------- Employee -------¡±, ¡°------- Manager -------¡±, ¡°------- Department -------¡±, or ¡°------- Company -------¡± in your output.
+//	To avoid complicating issues, you can assume that the user always enters input from keyboard that consists only of the digits 0 through 9 and Enter.
+
+ACCEPT p_1 PROMPT 'Please enter the employee ID:'
+DECLARE
+    v_input_emp_id  NUMBER := &p_1;
+    v_emp_name      employee.employee_name%TYPE;
+    v_emp_job       employee.job_title%TYPE;    
+    v_emp_pay       employee.salary%TYPE;
+    v_emp_date      employee.hire_date%TYPE;
+    v_mgr_id        employee.manager_id%TYPE;
+    v_mgr_name      employee.employee_name%TYPE;
+    v_mgr_job       employee.job_title%TYPE;
+    v_mgr_pay       employee.salary%TYPE;
+    v_mgr_date      employee.hire_date%TYPE;
+    v_dpt_id        department.department_id%TYPE;
+    v_dpt_name      department.department_name%TYPE;
+    v_dpt_loc       department.location%TYPE;
+    v_emp_number    NUMBER;
+    v_total_emp     NUMBER;
+    v_n             NUMBER;
+BEGIN
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    employee
+    WHERE   employee_id = v_input_emp_id;
+    
+    IF v_n != 1 THEN
+        DBMS_OUTPUT.PUT_LINE('User Input:');
+        DBMS_OUTPUT.PUT_LINE(v_input_emp_id);
+        DBMS_OUTPUT.PUT_LINE('My Output:');
+        DBMS_OUTPUT.PUT_LINE(v_input_emp_id || ' is not in the EMPLOYEE table.');
+    ELSE
+        SELECT  employee_name, job_title, hire_date, salary + NVL(commission, 0), manager_id, department_id
+        INTO    v_emp_name, v_emp_job, v_emp_date, v_emp_pay, v_mgr_id, v_dpt_id
+        FROM    employee
+        WHERE   employee_id = v_input_emp_id;
+        DBMS_OUTPUT.PUT_LINE('User Input:');
+        DBMS_OUTPUT.PUT_LINE(v_input_emp_id);
+        DBMS_OUTPUT.PUT_LINE('My Output:');
+        DBMS_OUTPUT.PUT_LINE('------- Employee -------');
+        DBMS_OUTPUT.PUT_LINE(RPAD('Name:', 15)|| v_emp_name); 
+        DBMS_OUTPUT.PUT_LINE(RPAD('Job Title:', 15) || v_emp_job);
+        DBMS_OUTPUT.PUT_LINE(RPAD('Hire Date:', 15) || TO_CHAR(v_emp_date, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE(RPAD('Total Pay:', 15) || TRIM(TO_CHAR(v_emp_pay, '$9,990.00')));
+        
+        IF v_mgr_id IS NOT NULL THEN
+            SELECT employee_name, job_title, hire_date, salary + NVL(commission, 0)
+            INTO v_mgr_name, v_mgr_job, v_mgr_date, v_mgr_pay 
+            FROM employee
+            WHERE employee_id = v_mgr_id;
+            DBMS_OUTPUT.PUT_LINE('------- Manager -------');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Name:', 15)|| v_mgr_name); 
+            DBMS_OUTPUT.PUT_LINE(RPAD('Job Title:', 15) || v_mgr_job);
+            DBMS_OUTPUT.PUT_LINE(RPAD('Hire Date:', 15) || TO_CHAR(v_mgr_date, 'DD-MON-YYYY'));
+            DBMS_OUTPUT.PUT_LINE(RPAD('Total Pay:', 15) || TRIM(TO_CHAR(v_mgr_pay, '$9,990.00')));
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('------- Manager -------');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Name:', 15)|| 'N/A'); 
+            DBMS_OUTPUT.PUT_LINE(RPAD('Job Title:', 15) || 'N/A');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Hire Date:', 15) || 'N/A');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Total Pay:', 15) || 'N/A');
+        END IF;
+        
+        IF v_dpt_id IS NOT NULL THEN
+            SELECT  department_name, location
+            INTO    v_dpt_name, v_dpt_loc
+            FROM    department
+            WHERE   department_id = v_dpt_id;
+            
+            SELECT  COUNT(*)
+            INTO    v_emp_number
+            FROM    employee
+            WHERE   department_id = v_dpt_id;
+            
+            DBMS_OUTPUT.PUT_LINE('------- Department -------');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Name:', 25)|| v_dpt_name); 
+            DBMS_OUTPUT.PUT_LINE(RPAD('Location:', 25) || v_dpt_loc);
+            DBMS_OUTPUT.PUT_LINE(RPAD('Number of Employees:', 25) || v_emp_number);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('------- Department -------');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Name:', 25)|| 'N/A'); 
+            DBMS_OUTPUT.PUT_LINE(RPAD('Location:', 25) || 'N/A');
+            DBMS_OUTPUT.PUT_LINE(RPAD('Number of Employees:', 25) || '0');
+        END IF;
+        
+        SELECT  COUNT(*)
+        INTO    v_total_emp
+        FROM    employee;
+        DBMS_OUTPUT.PUT_LINE('------- Company -------');
+        DBMS_OUTPUT.PUT_LINE(RPAD('Number of Employees:', 25) || v_total_emp);
+    END IF;
+END;
+
+--Part3.2--
+
+//Based on the DEPARTMENT and EMPLOYEE tables created in Assignment #1, write a PL/SQL anonymous block that accepts a department name from the user input and displays a) the department ID of that department, b) the location of that department, c) the number of employees in that department, d) the number of employees in that department whose hire date is after 31-DEC-2004, e) the average total pay (salary + commission) for that department, f) the number of employees in that department whose total pay (salary + commission) is less than the average total pay (salary + commission) for that department, and g) the number of employees in that department whose total pay (salary + commission) is less than the average total pay (salary + commission) of all employees in the company. 
+//	You will receive 0 points if you submit more than one PL/SQL program. 
+//	If the department name from the user input is not in the DEPARTMENT table (DEPARTMENT_NAME), your program displays a message telling the user that the department name is not in the table.
+//	Department name is not case sensitive (e.g., SALES = Sales).  You will lose 5 points if you do not use the UPPER (or LOWER) function in your program.
+//	Your program must display the average total pay (salary + commission) with a dollar ($) sign, a comma, and two decimal places (e.g., $1,234.56). 
+//	You will lose 5 points if your output does not have ¡°User Input:¡± or ¡°My Output:¡±.
+
+ACCEPT p_2 PROMPT 'Please enter the department name:'
+
+DECLARE
+    v_input_dpt_name    VARCHAR2(80) := '&p_2';
+    v_dpt_id            department.department_id%TYPE;
+    v_dpt_name          department.department_name%TYPE;
+    v_dpt_loc           department.location%TYPE;
+    v_avg_pay           NUMBER;
+    v_total_avg         NUMBER;
+    v_pay_num           NUMBER;
+    v_total_num         NUMBER;
+    v_emp_num           NUMBER;
+    v_date_num          NUMBER;
+    v_n                 NUMBER;
+BEGIN
+    SELECT  COUNT(*)
+    INTO    v_n
+    FROM    department
+    WHERE   UPPER(department_name) = UPPER(v_input_dpt_name);
+    
+    IF v_n = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('User Input:');
+        DBMS_OUTPUT.PUT_LINE(v_input_dpt_name);
+        DBMS_OUTPUT.PUT_LINE('My Output:');
+        DBMS_OUTPUT.PUT_LINE(v_input_dpt_name || ' is not in the DEPARTMENT table.');
+    ELSE
+        SELECT  department_id, department_name, location
+        INTO    v_dpt_id, v_dpt_name, v_dpt_loc
+        FROM    department
+        WHERE   UPPER(department_name) = UPPER(v_input_dpt_name);
+        
+        SELECT  COUNT(*)
+        INTO    v_emp_num
+        FROM    employee
+        WHERE   department_id = v_dpt_id;
+        
+        DBMS_OUTPUT.PUT_LINE('User Input:');
+        DBMS_OUTPUT.PUT_LINE(v_input_dpt_name);
+        DBMS_OUTPUT.PUT_LINE('My Output:');
+        DBMS_OUTPUT.PUT_LINE('Department Name: ' || v_dpt_name);
+        DBMS_OUTPUT.PUT_LINE(RPAD('a)', 3) || v_dpt_id);
+        DBMS_OUTPUT.PUT_LINE(RPAD('b)', 3) || v_dpt_loc);
+        DBMS_OUTPUT.PUT_LINE(RPAD('c)', 3) || v_emp_num);
+        
+        IF v_emp_num != 0 THEN            
+            SELECT  COUNT(*)
+            INTO    v_date_num
+            FROM    employee
+            WHERE   department_id = v_dpt_id
+            AND     hire_date > TO_DATE('31-DEC-2004','DD-MON-YYYY');
+            
+            SELECT  AVG(salary + NVL(commission, 0))
+            INTO    v_avg_pay
+            FROM    employee
+            WHERE   department_id = v_dpt_id;
+            
+            SELECT  COUNT(*)
+            INTO    v_pay_num
+            FROM    employee
+            WHERE   department_id = v_dpt_id
+            AND     salary + NVL(commission, 0) < v_avg_pay;
+            
+            SELECT  AVG(salary + NVL(commission, 0))
+            INTO    v_total_avg
+            FROM    employee;
+            
+            SELECT  COUNT(*)
+            INTO    v_total_num
+            FROM    employee
+            WHERE   department_id = v_dpt_id
+            AND     salary + NVL(commission, 0) < v_total_avg;
+            
+            DBMS_OUTPUT.PUT_LINE(RPAD('d)', 3) || v_date_num);
+            DBMS_OUTPUT.PUT_LINE(RPAD('e)', 2) || TO_CHAR(v_avg_pay, '$9,990.00'));
+            DBMS_OUTPUT.PUT_LINE(RPAD('f)', 3) || v_pay_num);
+            DBMS_OUTPUT.PUT_LINE(RPAD('g)', 3) || v_total_num);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(RPAD('d)', 3) || NVL(v_date_num, 0));
+            DBMS_OUTPUT.PUT_LINE(RPAD('e)', 3) || TRIM(TO_CHAR(NVL(v_avg_pay, 0), '$9,990.00')));
+            DBMS_OUTPUT.PUT_LINE(RPAD('f)', 3) || NVL(v_pay_num, 0));
+            DBMS_OUTPUT.PUT_LINE(RPAD('g)', 3) || NVL(v_total_num, 0));
+        END IF;
+
+    END IF;
+END;
+
+--Part3.3--
+
+//Based on the EMPLOYEE table created in Assignment #1, write a PL/SQL anonymous block that displays the number of employees earned salaries in each of the following ranges: $0.00 - $499.99, $500.00 - $999.99, $1000.00 - $1499.99, ¡­, $9500.00 - $9999.99. You can only use ONE SELECT-INTO statement in your program.
+//	You will receive 0 points if you submit more than one PL/SQL program. 
+//	You will lose 10 points if you use more than one SELECT-INTO statement in your program.
+//	You will lose 10 points if you use more than five local variables in your program.
+//	Oracle collection is not allowed. 
+
+DECLARE
+    v_1     NUMBER := 0;
+    v_2     NUMBER := 0;
+    v_q     NUMBER := 499.99;
+    v_num   NUMBER;
+BEGIN
+    FOR i IN 0..19 LOOP
+        v_2 := v_1 + v_q;
+        SELECT  COUNT(*)
+        INTO    v_num
+        FROM    employee
+        WHERE   salary < v_2
+        AND     salary >= v_1;
+        DBMS_OUTPUT.PUT_LINE(LPAD(TO_CHAR(v_1, '$9,990.99'), 10) || ' -' || LPAD(TO_CHAR(v_2, '$9,990.99'), 10) || ': ' || v_num);
+        v_1 := v_1 + 500;
+    END LOOP;
+END;

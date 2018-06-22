@@ -1,0 +1,93 @@
+--Part1.2--
+CREATE OR REPLACE TRIGGER emp_dept_hist_trg
+AFTER INSERT OR UPDATE ON employee
+FOR EACH ROW
+
+DECLARE
+    v_dpt_name      department.department_name%TYPE;
+    v_old_name      department.department_name%TYPE;
+    v_old_id        NUMBER;
+    v_new_id        NUMBER;
+BEGIN
+    IF inserting THEN
+        IF :NEW.department_id IS NULL THEN 
+            INSERT INTO tab_emp_dept_hist 
+            VALUES(:NEW.employee_Id, :NEW.employee_name, 'X' ,'X', 'INSERT', sysdate);
+        ELSE
+            SELECT  department_name 
+            INTO    v_dpt_name 
+            FROM    department 
+            WHERE   department_id = :NEW.department_id;
+            INSERT INTO tab_emp_dept_hist 
+            VALUES(:NEW.employee_Id, :NEW.employee_name, 'X', v_dpt_name, 'INSERT', sysdate);
+        END IF;
+    ELSE
+        v_old_id := :OLD.department_id;
+        IF :OLD.department_id IS NULL THEN
+            v_old_id := 0;  
+        END IF;      
+        v_new_id := :NEW.department_id;
+        IF :NEW.department_id IS NULL THEN
+            v_new_id := 0; 
+        END IF;    
+        IF v_old_id != v_new_id THEN
+            IF :OLD.department_id IS NOT NULL OR :NEW.department_id IS NOT NULL THEN
+                IF :NEW.department_id IS NOT NULL THEN
+                    SELECT  department_name 
+                    INTO    v_dpt_name 
+                    FROM    department 
+                    WHERE   department_id = :NEW.department_id;
+                END IF;
+                IF :OLD.department_id IS NOT NULL THEN
+                    SELECT  department_name 
+                    INTO    v_old_name  
+                    FROM	department  
+                    WHERE   department_id = :OLD.department_id;
+                END IF;          
+                IF :OLD.department_id IS NULL THEN
+                    INSERT INTO tab_emp_dept_hist 
+                    VALUES(:NEW.employee_Id, :NEW.employee_name, 'X' ,v_dpt_name, 'UPDATE', sysdate);
+                ELSIF :NEW.department_id IS NULL THEN
+                    INSERT INTO tab_emp_dept_hist 
+                    VALUES(:NEW.employee_Id, :new.employee_name, v_old_name ,'X', 'UPDATE', sysdate);
+                END IF;
+            END IF;
+        END IF;
+  END IF;
+END;
+
+
+--Part 2.3--
+
+//Create a trigger called EMP_MIN_SAL_TRG on the EMPLOYEE table. When an INSERT or UPDATE statement is issued against the EMPLOYEE table, 
+//the trigger is fired to ensure that the value of the SALARY column meets the criteria in the TAB_MINIMUM_SALARY table in any situations. 
+//(For example, you can find that the minimum salary for a programmer is 800 from the TAB_MINIMUM_SALARY table. Your trigger ensures that 
+//the salary for a programmer in the EMPLOYEE table is greater than or equal to 800 in any situations.)
+
+CREATE OR REPLACE TRIGGER emp_min_sal_trg 
+BEFORE INSERT OR UPDATE OF salary ON employee
+FOR EACH ROW
+DECLARE
+    v_sal_min       NUMBER;
+    v_n             NUMBER;
+BEGIN
+    SELECT  COUNT(*) 
+    INTO    v_n 
+    FROM    tab_minimum_salary 
+    WHERE   UPPER(job_title) = UPPER(:NEW.job_title);
+    
+    IF v_n > 0 THEN 
+        SELECT  minimum_salary 
+        INTO    v_sal_min 
+        FROM    tab_minimum_salary  
+        WHERE   UPPER(job_title) = UPPER(:NEW.job_title);
+    ELSE 
+        SELECT  minimum_salary 
+        INTO    v_sal_min 
+        FROM    tab_minimum_salary 
+        WHERE   UPPER(job_title) = 'X';
+    END IF;
+    IF :NEW.salary < v_sal_min THEN 
+        :NEW.salary := v_sal_min;
+    END IF;
+END;

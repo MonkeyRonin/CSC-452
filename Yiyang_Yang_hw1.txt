@@ -1,0 +1,95 @@
+================
+Part II
+================
+--Part2.1--
+
+//Write a SQL SELECT statement to display the employee ID, name, job title, and hire date for all employees along with their managers¡¯ names, job titles, and hire dates. Make sure that employees without managers are included as well. 
+//	If an employee does not have a manager, the manager¡¯s name is shown as ¡°------¡±, the manager¡¯s job title is shown as ¡°------¡±, and the manager¡¯s hire date is shown as 31-DEC-9999 in your output. 
+//	The hire date must be displayed in the DD-MON-YYYY format (4-digit year). 
+//	You cannot use hard-coded employee names (e.g., WHERE employee_name = 'KING') in your SELECT statement. 
+//	Sort your output in ascending order by employee ID. 
+//	You will receive 0 points if you submit more than one SELECT statement.
+
+set linesize 200
+SELECT worker.employee_id AS "EMPLOYEE ID", 
+       worker.employee_name AS "EMPLOYEE NAME", 
+       worker.job_title AS "EMPLOYEE JOB TITLE", 
+       TO_CHAR(worker.hire_date, 'DD-MON-YYYY') AS "EMPLOYEE HIRE DATE",
+       NVL(manager.employee_name, '------') AS "MANAGER NAME",
+       NVL(manager.job_title,'------') AS "MANAGER JOB TITLE",
+       NVL(TO_CHAR(manager.hire_date, 'DD-MON-YYYY'), '31-DEC-9999') AS "MANAGER HIRE DATE"
+FROM   employee worker
+LEFT OUTER JOIN employee manager
+ON worker.manager_id = manager.employee_id
+ORDER BY worker.employee_id ASC;
+
+--Part2.2--
+
+//Write a SQL SELECT statement to display 1) all department names, 2) the maximum total pay (salary + commission) for each department, 3) the minimum hire date for each department, and 4) the total number of employees in each department. 
+//	Any employee who does not belong to any department is excluded from your output. 
+//	You must display the maximum total pay with a dollar ($) sign, a comma, and two decimal places (e.g., $1,234.56). If a department does not have any employee, the maximum total pay is shown as $0.00.
+//	The minimum hire date must be displayed in the DD-MON-YYYY format (4-digit year). If a department does not have any employee, the minimum hire date is shown as 31-DEC-9999.
+//	Sort your output in ascending order by department name. 
+//	You will receive 0 points if you submit more than one SELECT statement.
+
+
+set linesize 200
+SELECT d.department_name AS "DEPARTMENT NAME",
+       TO_CHAR(NVL(MAX(ROUND(e.salary + NVL(e.commission, 0), 2)), 0), '$9,990.00') AS "MAXIMUM TOTAL PAY",
+       NVL(TO_CHAR(MIN(e.hire_date), 'DD-MON-YYYY'), '31-DEC-9999') AS "MINIMUM HIRE DATE",
+       COUNT(e.employee_id) AS "TOTAL NUMBER OF EMPLOYEES"
+FROM  department d
+LEFT OUTER JOIN employee e
+   ON d.department_id = e.department_id
+GROUP BY d.department_name
+ORDER BY d.department_name ASC;
+
+--Part2.3--
+
+//Write a SQL SELECT statement to find out the most recently hired employees in each department. Your SELECT statement must display the department ID, department name, employee ID, employee name, job title, and hire date. Any employee who does not belong to any department is excluded from your output.
+//	The hire date must be displayed in the DD-MON-YYYY format (4-digit year).
+//	You cannot use hard-coded values (e.g., WHERE department_id = 10) in your SELECT statement. 
+//	Sort your output in ascending order by department name and then employee name.  
+//	You will receive 0 points if you submit more than one SELECT statement.
+
+set linesize 200
+SELECT d.department_id AS "DEPARTMENT ID", 
+       d.department_name AS "DEPARTMENT NAME",
+       e.employee_id AS "EMPLOYEE ID",
+       e.employee_name AS "EMPLOYEE NAME",
+       e.job_title AS "JOB TITLE",
+       TO_CHAR(e.hire_date, 'DD-MON-YYYY') AS "HIRE DATE"
+FROM department d
+LEFT OUTER JOIN employee e
+ON d.department_id = e.department_id
+WHERE e.hire_date = (SELECT MAX(hire_date)
+                     FROM employee
+                     WHERE department_id = e.department_id)
+ORDER BY d.department_id ASC, e.employee_name ASC;
+
+--Part2.4--
+
+//Write a SQL SELECT statement to display the name and location of all departments (except the departments located in Dallas) with the highest number of employees.
+//	You cannot use join operations in your SELECT statement.
+//	Hard coding, except the string 'DALLAS', is not allowed in your SELECT statement.
+//	Sort your output in ascending order by department name.  
+//	You will receive 0 points if you submit more than one SELECT statement.
+
+set linesize 200
+SELECT d.department_name AS "DEPARTMENT NAME",
+       d.location AS "LOCATION"
+FROM department d
+WHERE d.department_id IN (SELECT e.department_id
+                          FROM employee e
+                          WHERE e.department_id IN (SELECT d.department_id
+                                                    FROM department d
+                                                    WHERE UPPER(d.location) != 'DALLAS')
+                          GROUP BY e.department_id
+                          HAVING COUNT(*) = (SELECT MAX(COUNT(*))
+                                             FROM employee
+                                             WHERE department_id IN (SELECT d.department_id
+                                                                     FROM department d
+                                                                     WHERE UPPER(d.location) != 'DALLAS')
+                                             GROUP BY department_id))
+GROUP BY d.department_name, d.location
+ORDER BY d.department_name ASC;

@@ -1,0 +1,198 @@
+CREATE TABLE baby_name
+( RANK					NUMBER(3),
+  SEX					CHAR CONSTRAINT ck_sex CHECK (SEX in ('M', 'F')),
+  GIVEN_NAME				VARCHAR2(20) 	NOT NULL,
+  NUMBER_OF_OCCURRENCES 		NUMBER 	NOT NULL,
+  CONSTRAINT pk_baby_names PRIMARY KEY (RANK, SEX));
+/
+INSERT INTO baby_name SELECT * FROM hchen.baby_name;
+COMMIT;
+/
+SELECT COUNT(*) FROM baby_name;
+/
+
+--Part3.1--
+//Write a PL/SQL anonymous block that accepts a positive integer n from the user input and displays all rows (Sex, Rank, Given Name, and Number_of_Occurrences) having rank ¡Ü n in the baby_name table. Sort your output in ascending order by sex, and then rank.
+
+ACCEPT p_1 PROMPT 'Please enter a positive integer:';
+DECLARE
+    v_input_num     NUMBER := &p_1;
+    v_rank          baby_name.rank%TYPE;
+    v_sex           baby_name.sex%TYPE;
+    v_name          baby_name.given_name%TYPE;
+    v_num           baby_name.number_of_occurrences%TYPE;
+    v_n             NUMBER;
+    
+    CURSOR  c_baby IS
+        SELECT      sex, rank, given_name, number_of_occurrences
+        FROM        baby_name
+        WHERE       rank <= v_input_num
+        ORDER BY    sex ASC, rank ASC; 
+BEGIN
+    IF v_input_num <= 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Invalid number!');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Sex' || LPAD('Rank', 10) || LPAD('Given Name', 13) || LPAD('Number of Occurrences', 34));
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 60, '='));
+        OPEN c_baby;
+        LOOP
+            FETCH c_baby INTO v_sex, v_rank, v_name, v_num;
+            EXIT WHEN c_baby%NOTFOUND;
+            CASE
+                WHEN v_sex = 'F' THEN
+                    CASE
+                        WHEN v_rank = 1 THEN
+                        DBMS_OUTPUT.PUT_LINE('Female' || LPAD(v_rank, 7) || LPAD(v_name, 7) || LPAD(v_num, 40));
+                        ELSE
+                        DBMS_OUTPUT.PUT_LINE(LPAD(v_rank, 13) || LPAD(' ', 3)|| RPAD(v_name, 8) || LPAD(v_num, 36));
+                    END CASE;
+                WHEN v_sex = 'M' THEN
+                    CASE
+                        WHEN v_rank = 1 THEN
+                        DBMS_OUTPUT.PUT_LINE('Male' || LPAD(v_rank, 9) || LPAD(v_name, 8) || LPAD(v_num, 39));
+                        ELSE
+                        DBMS_OUTPUT.PUT_LINE(LPAD(v_rank, 13) || LPAD(' ', 3) || RPAD(v_name, 10) || LPAD(v_num, 34));
+                    END CASE;
+            END CASE;
+        END LOOP;
+        CLOSE c_baby;
+    END IF;
+END;
+
+--Part3.2--
+
+//Based on the tables created in Assignment #1, write a PL/SQL anonymous block to perform the following tasks:
+//	Display the number of employees in the company.
+//	Display the maximum/minimum/average total pay for the company.
+//	For each department, perform the following steps:
+//a)	Display the department ID, name and location.
+//b)	Display 80% of the maximum total pay (maximum total pay * 0.80) for the department.
+//c)	Display 111% of the minimum total pay (minimum total pay * 1.11) for the department.
+//d)	Display the average total pay for the department.
+//e)	If the department does not have any employees, (b), (c) and (d) will be $0.00.
+//f)	If the average total pay for the department is greater than (b) and less than (c), the department name is marked with ¡°***¡±.
+//g)	Sort your output in ascending order by department ID.
+//
+//Total Pay = Salary + Commission.
+
+
+DECLARE
+    v_total_emp     NUMBER;
+    v_max_pay       NUMBER;
+    v_min_pay       NUMBER;
+    v_avg_pay       NUMBER;
+    v_dpt_id        department.department_id%TYPE;
+    v_dpt_name      department.department_name%TYPE;
+    v_location      department.location%TYPE;
+    v_emp_num       NUMBER;
+    
+    CURSOR  c_dpt IS
+        SELECT      department_id, department_name, location
+        FROM        department
+        ORDER BY    department_id ASC;
+BEGIN
+    SELECT  COUNT(*)
+    INTO    v_total_emp
+    FROM    employee;
+    DBMS_OUTPUT.PUT_LINE('NUMBER OF EMPLOYEES: ' || LPAD(' ', 32) || v_total_emp);
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 55, '-'));
+    
+    SELECT  MAX(salary + NVL(commission, 0)), MIN(salary + NVL(commission, 0)), AVG(salary + NVL(commission, 0))
+    INTO    v_max_pay, v_min_pay, v_avg_pay
+    FROM    employee;
+    DBMS_OUTPUT.PUT_LINE('COMPANY MAXIMUM TOTAL PAY: ' || LPAD(' ', 19) || TO_CHAR(v_max_pay, '$9990.99'));
+    DBMS_OUTPUT.PUT_LINE('COMPANY MINIMUM TOTAL PAY: ' || LPAD(' ', 19) || TO_CHAR(v_min_pay, '$9990.99'));
+    DBMS_OUTPUT.PUT_LINE('COMPANY AVERAGE TOTAL PAY: ' || LPAD(' ', 19) || TO_CHAR(v_avg_pay, '$9990.99'));
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 55, '-'));
+    
+    OPEN c_dpt;
+    LOOP
+        FETCH c_dpt INTO v_dpt_id, v_dpt_name, v_location;
+        EXIT WHEN c_dpt%NOTFOUND;
+        SELECT  COUNT(*), MAX(salary + NVL(commission, 0)), MIN(salary + NVL(commission, 0)), AVG(salary + NVL(commission, 0))
+        INTO    v_emp_num, v_max_pay, v_min_pay, v_avg_pay
+        FROM    employee
+        WHERE   department_id = v_dpt_id;
+        IF v_emp_num != 0  and v_avg_pay > v_max_pay * 0.8 and v_avg_pay < v_min_pay * 1.11 THEN
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT ID:' || LPAD(' ', 39) || v_dpt_id);
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT NAME:' || LPAD(v_dpt_name, 39) || '***');
+        DBMS_OUTPUT.PUT_LINE('LOCATION:' || LPAD(v_location, 46));
+        DBMS_OUTPUT.PUT_LINE('NUMBER OF EMPLOYEES:' || LPAD(v_emp_num, 35));
+        DBMS_OUTPUT.PUT_LINE('MAXIMUM TOTAL PAY * 80%:' || LPAD(TO_CHAR(v_max_pay * 0.8, '$9990.99'), 31));
+        DBMS_OUTPUT.PUT_LINE('MINIMUM TOTAL PAY * 111%:' || LPAD(TO_CHAR(v_min_pay * 1.11, '$9990.99'), 30));
+        DBMS_OUTPUT.PUT_LINE('AVERAGE TOTAL PAY:' || LPAD(TO_CHAR(v_avg_pay, '$9990.99'), 37));
+        ELSE
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT ID:' || LPAD(' ', 39) || v_dpt_id);
+        DBMS_OUTPUT.PUT_LINE('DEPARTMENT NAME:' || LPAD(v_dpt_name, 39));
+        DBMS_OUTPUT.PUT_LINE('LOCATION:' || LPAD(v_location, 46));
+        DBMS_OUTPUT.PUT_LINE('NUMBER OF EMPLOYEES:' || LPAD(v_emp_num, 35));
+        DBMS_OUTPUT.PUT_LINE('MAXIMUM TOTAL PAY * 80%:' || LPAD(TO_CHAR(NVL(v_max_pay * 0.8, 0), '$9990.99'), 31));
+        DBMS_OUTPUT.PUT_LINE('MINIMUM TOTAL PAY * 111%:' || LPAD(TO_CHAR(NVL(v_min_pay * 1.11, 0), '$9990.99'), 30));
+        DBMS_OUTPUT.PUT_LINE('AVERAGE TOTAL PAY:' || LPAD(TO_CHAR(NVL(v_avg_pay, 0), '$9990.99'), 37));
+        END IF;
+        DBMS_OUTPUT.PUT_LINE(LPAD('-', 55, '-'));     
+    END LOOP;
+    CLOSE c_dpt;
+END;
+
+--Part3.3--
+
+//Write a PL/SQL anonymous block that performs the following task:
+//	For each VIN in the auto_service table, if 1) the first service date is in the period 02/01/2004 (01-FEB-04) to 03/31/2013 (31-MAR-13), 2) the last service date is in the period 03/01/2012 (01-MAR-12) to 03/31/2013 (31-MAR-13),  and 3) the number of services is larger than 2, the following items along with the VIN are displayed: 
+//	The total number of services
+//	The first service date and the service price for the first service
+//	The last service date and the service price for the last service
+//	The minimum service price and the service date for the minimum service price
+//	The maximum service price and the service date for the maximum service price
+
+CREATE TABLE auto_service
+( 
+  SERVICE_ID 		NUMBER(10) 		PRIMARY KEY,
+  VIN 			VARCHAR2(18) 		NOT NULL,
+  SERVICE_DATE 	DATE 			NOT NULL,
+  SERVICE_PRICE 	NUMBER(7, 2) 		NOT NULL,
+  NOTE 		VARCHAR2(200) 	NOT NULL
+);
+/
+INSERT INTO auto_service SELECT * FROM hchen.auto_service;
+COMMIT;
+/
+SELECT COUNT(*) FROM auto_service;
+
+DECLARE
+    v_vin           auto_service.vin%TYPE;
+    v_max_date      auto_service.service_date%TYPE;
+    v_min_date      auto_service.service_date%TYPE;
+    v_num           NUMBER;
+    v_max_price     auto_service.service_price%TYPE;
+    v_min_price     auto_service.service_price%TYPE;
+    
+    CURSOR c_vin IS
+        SELECT      vin
+        FROM        auto_service
+        GROUP BY    vin
+        ORDER BY    vin;
+    
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('VIN' || LPAD(' ', 5) ||'# of Service' || LPAD(' ', 3) || 'First Service Date(Price)' || LPAD(' ', 3) ||'Last Service Date(Price)' || LPAD(' ', 3) ||'Min Price (Service Date)' || LPAD(' ', 3) ||'Max Price (Service Date)');
+    DBMS_OUTPUT.PUT_LINE(LPAD('=', 129, '='));
+    
+    OPEN c_vin;
+    LOOP
+        FETCH c_vin INTO v_vin;
+        EXIT WHEN c_vin%NOTFOUND;
+        
+        SELECT  COUNT(*), MAX(Service_date), MIN(Service_date), MAX(Service_price), MIN(Service_price)
+        INTO    v_num, v_max_date, v_min_date, v_max_price, v_min_price
+        FROM    auto_service
+        WHERE   vin = v_vin;
+        
+        IF v_num > 2 
+        and v_min_date >= TO_DATE('01-FEB-04', 'DD-MON-YY') 
+        and v_min_date <= TO_DATE('31-MAR-13', 'DD-MON-YY') 
+        and v_max_date >= TO_DATE('01-MAR-12', 'DD-MON-YY')
+        and v_max_date <= TO_DATE('31-MAR-13', 'DD-MON-YY')THEN    
+        DBMS_OUTPUT.PUT_LINE(v_vin || LPAD(v_num, 14) || LPAD(v_min_date, 28) || LPAD(v_max_date, 27) || LPAD(TO_CHAR(v_min_price, '$9990.99'), 27) || LPAD(TO_CHAR(v_max_price, '$9990.99'), 27));
+        END IF;
+    END LOOP;
+END;
