@@ -1,2 +1,2 @@
 # CSC-452
-De
+DePaul CSC 452 Database Programming (SQL)
